@@ -116,7 +116,6 @@ partial class Program
 
     // TODO: build parser 
     static Dictionary<int, CommandInfo> ExtractCommandsAndArgsFromUserInput(string? text) { 
-        //var executionPlan = new Dictionary<int, CommandInfo>();
         // need a better way to parse args so that we don't have to handle redirect repetitively inside of each method. 
         // ex checking if args contains > or 1> and trying to parse the content before and after it 
         // we should take the users input, extract first command, look for valid arguments or another command then keep moving through string passed 
@@ -127,6 +126,7 @@ partial class Program
         // 4) search for arguments mytextfile.txt -> FindOrCreate, store to 'mytextfile.txt' to table 
         // 5) execution: run left to right, echo 'this is some text' redirecting standard output to mytextfile.txt which was made if didn't already exist prior to execution 
 
+        // nothing in here so return everything as empty 
         if(string.IsNullOrEmpty(text)){
             return new Dictionary<int, CommandInfo> {
                 [0] = new CommandInfo {
@@ -137,64 +137,83 @@ partial class Program
             };
         }
         
-        string command1 = string.Empty; 
-        List<string> args = []; 
-        string c1_operator = string.Empty;
+        List<string> commands = [];  
+        List<List<string>> args = []; 
+        List<string> operators = [];
+        int summedLength = 0; 
 
-
+        // after trimming, there is not a space (somewhere in middle) -> if there is a command it is by itself and does not have args or operator 
         if ( !text.Contains(' ') ) {
             //single work, command only probably 
-            command1 = text; 
+            return new Dictionary<int, CommandInfo> {
+                [0] = new CommandInfo {
+                    Command = text, 
+                    Args = [string.Empty], 
+                    Operator = string.Empty
+                }
+            };
         }
-        else 
+        
+        // continually parse out command, args, operators and build execution plan 
+        while (text.Length > summedLength) 
         {
-            // find first command: 
-            for( int i = 0; i < text.Length; i++ ){
-                if( text[i] == ' ') {
-                    command1 = text[..i];
-                    break;
+            // build out one dictionary entry at a time 
+
+            // 1) find the command 
+            for(int i = 0; i < text.Length; i++){
+                summedLength++;
+                if(text[i] == ' ') {
+                    // we found a command, add it to the list and move onto args or operator 
+                    commands.Add(text[..i]);
+                    text = text[text[..i].Length..]; // slice off command which was extracted 
+                    text = text.Trim(); // trim leading or trailing space 
+                    break; // don't want to parse args or operators as more commands 
                 }
             }
 
-            text = text[command1.Length..]; // slice off command previously extracted 
-            text = text.Trim();
-            int length = 0;
-            // we have a command, find args now 
-            if( !string.IsNullOrEmpty(command1) ){
-                for( int i = 0; i < text.Length; i++) {
-                    if (text[i] == ' ') {
-                        args.Add(text[..i]);
-                        break; // well assume only one argument for now 
-                    }  
-                    length++;
+            // 2) find the (optional) args
+            bool hasOperator = false; 
+            List<string> argList = []; // build local list to add onto master list 
+            for(int i = 0; i < text.Length; i++){
+                summedLength++;
+                if (text[i] == ' ') {
+                    argList.Add(text[..i]); 
+                    // must continue to parse args up to an operator being found 
+                    text = text[text[..i].Length..]; // slice up to this point 
+                    text = text.Trim();
+                }
+                else if (text[i] == '>' || text[i] == '|'){ // just do this for now not considering if it's a valid part of the commands args  (ex. echo "this | text")
+                    // operator found, stop parsing args after this point 
+                    argList.Add(text[..i]);
+                    text = text[text[..i].Length..]; // slice up to this point 
+                    text = text.Trim();
+                    hasOperator = true; 
+                    break; 
                 }
             }
+            args.Add(argList);
 
-            text = text[length..]; // slice arg length from text 
-            text = text.Trim();
-            // leftover for now would be the operator to chain another command so we'll try to extract that now 
-            if (!string.IsNullOrEmpty(text)) {
-                for (int i = 0; i < text.Length; i++){
-                    if (text[i] == ' ') // operator found or end of text sent 
-                    {
-                        c1_operator = text[..i];
+            // 3) get the operator 
+            if(hasOperator) {
+                for(int i = 0; i < text.Length; i++) {
+                    summedLength++;
+                    if(text[i] == ' ') {// passed operator, take from slice 
+                        operators.Add(text[..i]);
                         break;
                     }
-                    else if (i == text.Length - 1) // reached end of command that was trimmed so their wont be a trailing space 
-                    {
-                        c1_operator += text[i];
-                    }
                 }
             }
         }
-        // placeholder code -> just assume text is a command with no args or operators 
-        var executionPlan = new Dictionary<int, CommandInfo> {
-            [0] = new CommandInfo { 
-                Command = command1.ToLower() ?? string.Empty, 
-                Args = [.. args], // ToArray() equivalent 
-                Operator = c1_operator ?? string.Empty 
-                }
-        };
+
+        // 4) put execution plan together 
+        var executionPlan = new Dictionary<int, CommandInfo>();
+        for(int i = 0; i < commands.Count; i++) {
+            executionPlan[i] = new CommandInfo {
+                Command = commands[i].ToLower() ?? string.Empty, 
+                Args = [.. args[i]], // ToArray() equivalent 
+                Operator = operators[i] ?? string.Empty
+            };
+        }
 
         Logger.Log($"Command: {executionPlan[0].Command}", LogLevel.Debug);
         Logger.Log("Args: ", LogLevel.Debug);

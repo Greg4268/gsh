@@ -210,10 +210,11 @@ partial class Program
         for(int i = 0; i < commands.Count; i++) {
             executionPlan[i] = new CommandInfo {
                 Command = commands[i].ToLower() ?? string.Empty, 
-                Args = [.. args[i]], // ToArray() equivalent 
-                Operator = operators[i] ?? string.Empty
+                Args = [.. args[i]], // ToArray equivalent 
+                Operator = i < operators.Count ? operators[i] : string.Empty
             };
         }
+
 
         Logger.Log($"Command: {executionPlan[0].Command}", LogLevel.Debug);
         Logger.Log("Args: ", LogLevel.Debug);

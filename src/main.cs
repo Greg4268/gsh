@@ -173,14 +173,16 @@ partial class Program
 
             // 2) find the (optional) args
             bool hasOperator = false; 
+            int currLen = text.Length; 
             List<string> argList = []; // build local list to add onto master list 
-            for(int i = 0; i < text.Length; i++){
+            for(int i = 0; i < currLen; i++){
                 summedLength++;
                 if (text[i] == ' ') {
                     argList.Add(text[..i]); 
                     // must continue to parse args up to an operator being found 
                     text = text[text[..i].Length..]; // slice up to this point 
                     text = text.Trim();
+                    currLen = text.Length; 
                 }
                 else if (text[i] == '>' || text[i] == '|'){ // just do this for now not considering if it's a valid part of the commands args  (ex. echo "this | text")
                     // operator found, stop parsing args after this point 
@@ -188,6 +190,12 @@ partial class Program
                     text = text[text[..i].Length..]; // slice up to this point 
                     text = text.Trim();
                     hasOperator = true; 
+                    break; 
+                }
+                else if(i + 1 == text.Length) {// we now reached the end and no operator so the inclusive of last index we have another arg to add
+                    int j = i + 1;  
+                    argList.Add(text[..j]);
+                    text = string.Empty;
                     break; 
                 }
             }
@@ -210,7 +218,7 @@ partial class Program
         for(int i = 0; i < commands.Count; i++) {
             executionPlan[i] = new CommandInfo {
                 Command = commands[i].ToLower() ?? string.Empty, 
-                Args = [.. args[i]], // ToArray equivalent 
+                Args = i < args.Count ? [.. args[i]] : [string.Empty], // ToArray equivalent 
                 Operator = i < operators.Count ? operators[i] : string.Empty
             };
         }

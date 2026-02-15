@@ -603,7 +603,7 @@ partial class Program
 
     public static class Logger
     {
-        public static LogLevel CurrentLevel = LogLevel.Debug;
+        public static LogLevel CurrentLevel = LogLevel.None;
 
         public static void Log(string message, LogLevel level)
         {

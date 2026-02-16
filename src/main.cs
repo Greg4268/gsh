@@ -183,11 +183,15 @@ partial class Program
                     text = text[text[..i].Length..]; // slice up to this point 
                     text = text.Trim();
                     currLen = text.Length; 
+                    i = -1; 
                 }
                 else if (text[i] == '>' || text[i] == '|'){ // just do this for now not considering if it's a valid part of the commands args  (ex. echo "this | text")
-                    // operator found, stop parsing args after this point 
-                    argList.Add(text[..i]);
-                    text = text[text[..i].Length..]; // slice up to this point 
+                    if(!string.IsNullOrWhiteSpace(text[..i])) {
+                        argList.Add(text[..i]);
+                    }
+                    // slice off the operator and leave everything after. trimmed 
+                    int idx = i + 1;
+                    text = text[idx..];
                     text = text.Trim();
                     hasOperator = true; 
                     break; 
@@ -491,7 +495,7 @@ partial class Program
             }
         }
         else {
-            error = $"ls: {path} does not exist.";
+            error = $"ls: '{path}' does not exist.";
             returnCode = 1; 
         }
 

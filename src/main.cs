@@ -479,84 +479,48 @@ partial class Program
 
     static CommandReturnStruct Ls(string[] args) {
         string error = string.Empty; 
-        int returnCode = -1; 
-        string file = string.Join(' ', args);
-        string[] output = new string[100]; // maybe change later 
-        // args == filepath (for now) to list contents of 
-        // check path exists, iterate through contents 
-        // make it pretty 
-        // TODO: handle arguments other than filepath 
-        if (File.Exists(file)) {
-            output = Directory.GetFileSystemEntries(file); // assumes args is only filepath 
+        int returnCode = -1;
+        // if no file path arg then its 'ls' and we just show current directory 
+        string path = string.IsNullOrEmpty(args[0]) ? "." : args[0]; 
+        List<string> output = [];
+        bool exists = File.Exists(path) || Directory.Exists(path);
+
+        if (exists) {
+            foreach(var f in Directory.EnumerateFileSystemEntries(path)) {
+                output.Add(f); 
+            }
         }
         else {
-            error = $"file {file} does not exist.";
+            error = $"ls: {path} does not exist.";
             returnCode = 1; 
         }
 
         return new CommandReturnStruct {
-            Output = output ?? [string.Empty], 
+            Output = output.ToArray() ?? [string.Empty], 
             ReturnCode = returnCode, 
             Error = error
         };
     }
 
 #endregion 
-
-    // command > file.txt
-    // static void Redirect(string commandOutput, string filePath) { 
-    //     if (commandOutput == null || filePath == null) {
-    //         Console.WriteLine($"error: commandOutout ({commandOutput}) or filePath ({filePath}) was null.");
-    //         return;
-    //     }
-    //     var (isError, path) = GetOrCreateFilePath(filePath);
-    //     if (!isError) {
-    //         using StreamWriter sw = new(path);
-    //         sw.WriteLine(commandOutput);
-    //     }
-    // }
-    // static (bool, string) GetOrCreateFilePath(string filePath) {
-    //     bool isError = false; 
-    //     string filePathReturned = filePath; 
-
-    //     if (File.Exists(filePath)){
-    //         Console.WriteLine($"File already exists.");
-    //         return (isError, filePathReturned);
-    //     }
-    //     else {
-    //         // try to create the file to specified path 
-    //         try {
-    //             File.Create(filePath);
-    //             Console.WriteLine($"Creating file to {filePath}.");
-    //         }
-    //         catch (Exception e){
-    //             Console.WriteLine($"There was an error while attempting to create a file of path {filePath}. Error message: {e}");
-    //             isError = true; 
-    //             filePathReturned = string.Empty; 
-    //             return (isError, filePathReturned);
-    //         }
-    //     }
-    //     return (isError, filePathReturned);
-    // }
-
     static int OutputResponse(CommandReturnStruct response) {
         // now, handle the output of the command (stdout, stderr)
-        if (!string.IsNullOrEmpty(response.Output[0])){
-            if (response.Output.Length > 1) {
-                foreach(string item in response.Output){
+        if (response.Output != null && response.Output.Length > 0)
+        {
+            foreach (string item in response.Output)
+            {
+                if (!string.IsNullOrEmpty(item))
                     Console.WriteLine(item);
-                }
-            } 
-            else {
-                Console.WriteLine(response.Output[0]);
             }
+
             return 0;
         }
-        
-        // show error if there is both error and output? 
-        if (!string.IsNullOrEmpty(response.Error)) {
+
+        if (!string.IsNullOrEmpty(response.Error))
+        {
             Console.WriteLine(response.Error);
         }
+
         return 1;
     }
     static bool IsCommandExecutableFromPATH(string command) {

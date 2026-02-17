@@ -577,10 +577,10 @@ partial class Program
     }
     
     static int WriteOutputToFile(CommandInfo item, CommandReturnStruct response) {
-        if(!string.IsNullOrEmpty(item.RedirectFileName) && IsWritableFile(item.RedirectFileName)){
+        if(!string.IsNullOrEmpty(item.RedirectFileName)){
+            string content = string.Join(" ", response.Output);
             try {
-                using StreamWriter sw = new(item.RedirectFileName);
-                foreach(string str in response.Output) sw.Write(str);
+                File.WriteAllText(item.RedirectFileName, content);
                 return 0;
             }
             catch (Exception e) {
@@ -594,34 +594,34 @@ partial class Program
         }
     }
 
-    static bool IsWritableFile(string filePath)
-    {
-        try
-        {
-            // Check if the file exists
-            if (!File.Exists(filePath))
-                return false;
+    // static bool IsWritableFile(string filePath)
+    // {
+    //     try
+    //     {
+    //         // Check if the file exists
+    //         if (!File.Exists(filePath))
+    //             return false;
 
-            // Get file attributes
-            FileInfo fileInfo = new FileInfo(filePath);
+    //         // Get file attributes
+    //         FileInfo fileInfo = new FileInfo(filePath);
 
-            // Check if the file is read-only
-            if ((fileInfo.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
-                return false;
+    //         // Check if the file is read-only
+    //         if ((fileInfo.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+    //             return false;
 
-            // Try to open the file with write permissions
-            using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Write))
-            {
-                // Successfully opened the file, so it's writable
-                return true;
-            }
-        }
-        catch (Exception)
-        {
-            // If an error occurs (e.g., no permission), return false
-            return false;
-        }
-    }
+    //         // Try to open the file with write permissions
+    //         using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Write))
+    //         {
+    //             // Successfully opened the file, so it's writable
+    //             return true;
+    //         }
+    //     }
+    //     catch (Exception)
+    //     {
+    //         // If an error occurs (e.g., no permission), return false
+    //         return false;
+    //     }
+    // }
 
     [GeneratedRegex(@"(?<=\S)(?=\s)|(?<=\s)(?=\S)")]
     private static partial Regex MyRegex();

@@ -37,6 +37,7 @@ partial class Program
         public string Command; 
         public string[] Args;
         public string Operator;
+        public string RedirectFileName; 
     }
 
     // use a dictionary to store parsed user input for execution 
@@ -116,16 +117,6 @@ partial class Program
 
     // TODO: build parser 
     static Dictionary<int, CommandInfo> ExtractCommandsAndArgsFromUserInput(string? text) { 
-        // need a better way to parse args so that we don't have to handle redirect repetitively inside of each method. 
-        // ex checking if args contains > or 1> and trying to parse the content before and after it 
-        // we should take the users input, extract first command, look for valid arguments or another command then keep moving through string passed 
-        // ex. echo 'this is ' 'some text > mytextfile.txt 
-        // 1) parse echo, see its a command, store to table
-        // 2) search for arguments 'this is ' and 'some text' are both valid arguments which get concatentated then added to table as the value for the command 
-        // 3) continue forward and find '>' redirect, store to table
-        // 4) search for arguments mytextfile.txt -> FindOrCreate, store to 'mytextfile.txt' to table 
-        // 5) execution: run left to right, echo 'this is some text' redirecting standard output to mytextfile.txt which was made if didn't already exist prior to execution 
-
         // nothing in here so return everything as empty 
         if(string.IsNullOrEmpty(text)){
             return new Dictionary<int, CommandInfo> {
@@ -140,6 +131,7 @@ partial class Program
         List<string> commands = [];  
         List<List<string>> args = []; 
         List<string> operators = [];
+        List<string> redirectFileNames = []; 
         int summedLength = 0; 
 
         // after trimming, there is not a space (somewhere in middle) -> if there is a command it is by itself and does not have args or operator 
@@ -149,7 +141,8 @@ partial class Program
                 [0] = new CommandInfo {
                     Command = text, 
                     Args = [string.Empty], 
-                    Operator = string.Empty
+                    Operator = string.Empty,
+                    RedirectFileName = string.Empty
                 }
             };
         }
@@ -189,9 +182,7 @@ partial class Program
                     if(!string.IsNullOrWhiteSpace(text[..i])) {
                         argList.Add(text[..i]);
                     }
-                    // slice off the operator and leave everything after. trimmed 
-                    int idx = i + 1;
-                    text = text[idx..];
+                    text = text[i..];
                     text = text.Trim();
                     hasOperator = true; 
                     break; 
@@ -205,12 +196,28 @@ partial class Program
             }
             args.Add(argList);
 
-            // 3) get the operator 
+            // 3) get the operator and it's file 
             if(hasOperator) {
+                // Logger.Log($"Has Operator? {hasOperator}", LogLevel.Debug);
+                // Logger.Log($"Text: {text}", LogLevel.Debug); 
                 for(int i = 0; i < text.Length; i++) {
                     summedLength++;
                     if(text[i] == ' ') {// passed operator, take from slice 
                         operators.Add(text[..i]);
+                        text = text[i..].Trim();
+                        // get the file name but nothing more - i know this is nested like crazy but it'll do for now 
+                        for(int j = 0; j < text.Length; j++) {
+                            if(text[j] == ' ') {
+                                redirectFileNames.Add(text[..i].Trim());
+                                break;
+                            }
+                            else if(j + 1 == text.Length) {
+                                int k = j + 1; 
+                                redirectFileNames.Add(text[..k]);
+                                text = string.Empty;
+                                break;
+                            }
+                        }
                         break;
                     }
                 }
@@ -223,17 +230,16 @@ partial class Program
             executionPlan[i] = new CommandInfo {
                 Command = commands[i].ToLower() ?? string.Empty, 
                 Args = i < args.Count ? [.. args[i]] : [string.Empty], // ToArray equivalent 
-                Operator = i < operators.Count ? operators[i] : string.Empty
+                Operator = i < operators.Count ? operators[i] : string.Empty,
+                RedirectFileName = i < redirectFileNames.Count ? redirectFileNames[i] : string.Empty
             };
-        }
 
-
-        Logger.Log($"Command: {executionPlan[0].Command}", LogLevel.Debug);
-        Logger.Log("Args: ", LogLevel.Debug);
-        foreach ( string str in executionPlan[0].Args) {
-            Logger.Log(str, LogLevel.Debug);
+            Logger.Log($"Command: {executionPlan[i].Command}", LogLevel.Debug);
+            Logger.Log($"Args:", LogLevel.Debug);
+            foreach(string str in executionPlan[i].Args) Logger.Log(str, LogLevel.Debug);
+            Logger.Log($"Operator: {executionPlan[i].Operator}", LogLevel.Debug);
+            Logger.Log($"Redirect File Name: {executionPlan[i].RedirectFileName}\n\n", LogLevel.Debug);
         }
-        Logger.Log($"Operator: {executionPlan[0].Operator}", LogLevel.Debug);
 
         return executionPlan; 
     }
@@ -244,10 +250,10 @@ partial class Program
         CommandReturnStruct resp;
         // 0 : success 
         // 1 : fail 
-        Logger.Log($"is {item.Command} a builtin: {commandsDict.ContainsKey(item.Command)}", LogLevel.Debug);
+        // Logger.Log($"is {item.Command} a builtin: {commandsDict.ContainsKey(item.Command)}", LogLevel.Debug);
         if (commandsDict.ContainsKey(item.Command)) {
             // is a builtin, run through switch-case 
-            Logger.Log($"Executing builtin {item.Command}", LogLevel.Debug);
+            // Logger.Log($"Executing builtin {item.Command}", LogLevel.Debug);
             resp = ExecuteBuiltin(item);
         }
         else if (IsCommandExecutableFromPATH(item.Command)) {
@@ -258,6 +264,16 @@ partial class Program
             Console.WriteLine($"{item.Command}: command not found");
             return 1;
         }
+
+
+        bool isOperatorNullOrEmpty = string.IsNullOrEmpty(item.Operator);
+        if (!isOperatorNullOrEmpty && item.Operator.Contains('>')) {
+            return WriteOutputToFile(item, resp);
+        }
+        if (!isOperatorNullOrEmpty && item.Operator.Contains('|')) {
+            //return PipeToCommand() // idk if this is how I want to do pipe yet ... instead maybe do it different or mark pipe-to command as next command and have it handled upstream in main loop 
+        }
+
         return OutputResponse(resp); // don't output the response here if this method will get called by other Execute methods?... since output may need to be passed into redirect 
     }
 
@@ -277,7 +293,7 @@ partial class Program
             // is a builtin, run through switch-case 
             response = ExecuteBuiltin(item);
         }
-        if (IsCommandExecutableFromPATH(item.Command)) {
+        else if (IsCommandExecutableFromPATH(item.Command)) {
             response = ExecuteInPATH(item);
         }
         else {
@@ -287,28 +303,28 @@ partial class Program
         }
         if (redirect == true || append == true || pipe == true) {
             // not a console write, route output into next. 
-            CommandInfo ci = item2 ?? default;
-            int idx = -1; 
+            // CommandInfo ci = item2 ?? default;
+            // int idx = -1; 
             // get index of next available spot 
-            for (int i = 0; i < ci.Args.Length; i++){
-                if (ci.Args[i] == null) { // maybe do IsNullOrEmpty instead? 
-                    if (i + 2 < ci.Args.Length) idx = i; 
-                    break; 
-                }
-            }
-            if (idx != -1){
-                //ci.Args[idx] = [response.Output]; 
-                ci.Args[idx] = "placeholder";
-                ci.Args[idx + 1] = response.ReturnCode.ToString(); 
-                ci.Args[idx + 2] = response.Error ?? string.Empty;
-            }
-            else {
-                Console.WriteLine("idx was -1. Array is maybe full?");
-            }
-
-            if(item2 != null){
-                ExecuteSolo(item2); // no need for return, it will handle it's own response output 
-            }
+            // for (int i = 0; i < ci.Args.Length; i++){
+            //     if (ci.Args[i] == null) { // maybe do IsNullOrEmpty instead? 
+            //         if (i + 2 < ci.Args.Length) idx = i; 
+            //         break; 
+            //     }
+            // }
+            // if (idx != -1){
+            //     //ci.Args[idx] = [response.Output]; 
+            //     ci.Args[idx] = "placeholder";
+            //     ci.Args[idx + 1] = response.ReturnCode.ToString(); 
+            //     ci.Args[idx + 2] = response.Error ?? string.Empty;
+            // }
+            // else {
+            //     Console.WriteLine("idx was -1. Array is maybe full?");
+            // }
+            // if(item2 != null){
+            //     ExecuteSolo(item2); // no need for return, it will handle it's own response output 
+            // }
+            WriteOutputToFile(item, response); 
         }
         return new CommandReturnStruct {
             Output = [string.Empty],
@@ -558,6 +574,53 @@ partial class Program
             }
         }
         return string.Empty;
+    }
+    
+    static int WriteOutputToFile(CommandInfo item, CommandReturnStruct response) {
+        if(!string.IsNullOrEmpty(item.RedirectFileName) && IsWritableFile(item.RedirectFileName)){
+            try {
+                using StreamWriter sw = new(item.RedirectFileName);
+                foreach(string str in response.Output) sw.Write(str);
+                return 0;
+            }
+            catch (Exception e) {
+                Console.WriteLine($"Exception: {e}");
+                return 1; 
+            }
+        }
+        else {
+            Console.WriteLine($"error: cannot write to file '{item.RedirectFileName}'");
+            return 1;
+        }
+    }
+
+    static bool IsWritableFile(string filePath)
+    {
+        try
+        {
+            // Check if the file exists
+            if (!File.Exists(filePath))
+                return false;
+
+            // Get file attributes
+            FileInfo fileInfo = new FileInfo(filePath);
+
+            // Check if the file is read-only
+            if ((fileInfo.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+                return false;
+
+            // Try to open the file with write permissions
+            using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Write))
+            {
+                // Successfully opened the file, so it's writable
+                return true;
+            }
+        }
+        catch (Exception)
+        {
+            // If an error occurs (e.g., no permission), return false
+            return false;
+        }
     }
 
     [GeneratedRegex(@"(?<=\S)(?=\s)|(?<=\s)(?=\S)")]

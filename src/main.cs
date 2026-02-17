@@ -497,17 +497,61 @@ partial class Program
         };
     }
 
+    // fix this up when avail 
     static CommandReturnStruct Ls(string[] args) {
         string error = string.Empty; 
         int returnCode = -1;
         // if no file path arg then its 'ls' and we just show current directory 
-        string path = string.IsNullOrEmpty(args[0]) ? "." : args[0]; 
-        List<string> output = [];
-        bool exists = File.Exists(path) || Directory.Exists(path);
+        Dictionary<string, bool> LsArgs = new() {
+            ["-1"] = true, 
+            ["l"] = true 
+        };
+        // find the file path (if it exists) 
+        string path = string.Empty; 
+        string argsCombined = string.Join(" ", args); 
+        if(!LsArgs.ContainsKey(argsCombined)){
+            // add as path  
+            path = argsCombined; 
+        }
+        // else, argsCombined must be just be path, now check if path is valid  
+        if(string.IsNullOrEmpty(path)) path = "."; // is argsCombined was args, then set path to current directory 
+        bool exists = File.Exists(path) || Directory.Exists(path); 
 
-        if (exists) {
-            foreach(var f in Directory.EnumerateFileSystemEntries(path)) {
-                output.Add(f); 
+        List<string> output = [];
+
+        if (exists) { // path would always exist here so long as argsCombined isn't an invalid path 
+            if(args.Length > 0) { 
+                string arg = args[0]; // just assume one arg for ls before path 
+                switch(arg) {
+                    case "-1": 
+                        System.Console.WriteLine("case -1 hit");
+                        foreach(var f in Directory.EnumerateFileSystemEntries(path)) {
+                            output.Add(f);
+                        }
+                        returnCode = 0; 
+                        break;
+                    case "":
+                        // no arg besides path?
+                        string content = string.Join(" ", Directory.GetFiles(path));
+                        output.Add(content); // just all space seperated in the first element 
+                        returnCode = 0;
+                        break;
+                    case ".":
+                        // no arg besides path?
+                        output.Add(string.Join(" ", Directory.GetFiles(path))); // just all space seperated in the first element 
+                        returnCode = 0;
+                        break;
+                    default: 
+                        Console.WriteLine($"arg '{arg}' not recognized for ls");
+                        returnCode = 1; 
+                        break;
+                }
+            }
+            else{
+                Console.WriteLine("else hit."); // always getting hit right now 
+                string content = string.Join(" ", Directory.GetFiles(path));
+                output.Add(content); // just all space seperated in the first element 
+                returnCode = 0;
             }
         }
         else {

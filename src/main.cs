@@ -1,44 +1,22 @@
 using System.Linq;
 using System.IO;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using src;
+using src.builtins;
+#pragma warning disable CS8981, CA2101, SYSLIB1054, IDE0305
 partial class Program
 {
     static readonly Dictionary<string, bool> commandsDict = new()
     {
         ["echo"] = true, 
         ["type"] = true, 
-        ["exit"] = true,
         ["pwd"] = true,
         ["cd"] = true,
         ["cat"] = true,
         ["ls"] = true, 
     }; 
-
-    // Unix file permission constants
-    private const int S_IXUSR = 0x40; // owner execute
-    private const int S_IXGRP = 0x08; // group execute
-    private const int S_IXOTH = 0x01; // others execute
-    // Import chmod function for checking execute permissions
-    [DllImport("libc", SetLastError = true)]
-    private static extern int access(string pathname, int mode);
-    private const int F_OK = 0; // check for file existence
-    private const int X_OK = 1; // check for execute permission
-
-    public struct CommandReturnStruct {
-        public string[] Output;
-        public int ReturnCode; 
-        public string Error; 
-    }
-
-    public struct CommandInfo { 
-        public string Command; 
-        public string[] Args;
-        public string Operator;
-        public string RedirectFileName; 
-    }
 
     // use a dictionary to store parsed user input for execution 
     public static Dictionary<int, CommandInfo> executionPlan = [];
@@ -51,7 +29,7 @@ partial class Program
             string? input = Console.ReadLine();
             if (string.IsNullOrEmpty(input)) continue; 
 
-            executionPlan = ExtractCommandsAndArgsFromUserInput(input.Trim());
+            executionPlan = parse.Run(input.Trim());
             if ( executionPlan.Count == 0 ) {
                 continue; // dict is empty, just request new user input 
             }
@@ -115,135 +93,6 @@ partial class Program
         }
     }
 
-    // TODO: build parser 
-    static Dictionary<int, CommandInfo> ExtractCommandsAndArgsFromUserInput(string? text) { 
-        // nothing in here so return everything as empty 
-        if(string.IsNullOrEmpty(text)){
-            return new Dictionary<int, CommandInfo> {
-                [0] = new CommandInfo {
-                    Command = string.Empty, 
-                    Args = [string.Empty], 
-                    Operator = string.Empty
-                }
-            };
-        }
-        
-        List<string> commands = [];  
-        List<List<string>> args = []; 
-        List<string> operators = [];
-        List<string> redirectFileNames = []; 
-        int summedLength = 0; 
-
-        // after trimming, there is not a space (somewhere in middle) -> if there is a command it is by itself and does not have args or operator 
-        if ( !text.Contains(' ') ) {
-            //single work, command only probably 
-            return new Dictionary<int, CommandInfo> {
-                [0] = new CommandInfo {
-                    Command = text, 
-                    Args = [string.Empty], 
-                    Operator = string.Empty,
-                    RedirectFileName = string.Empty
-                }
-            };
-        }
-        
-        // continually parse out command, args, operators and build execution plan 
-        while (text.Length > summedLength) 
-        {
-            // build out one dictionary entry at a time 
-
-            // 1) find the command 
-            for(int i = 0; i < text.Length; i++){
-                summedLength++;
-                if(text[i] == ' ') {
-                    // we found a command, add it to the list and move onto args or operator 
-                    commands.Add(text[..i]);
-                    text = text[text[..i].Length..]; // slice off command which was extracted 
-                    text = text.Trim(); // trim leading or trailing space 
-                    break; // don't want to parse args or operators as more commands 
-                }
-            }
-
-            // 2) find the (optional) args
-            bool hasOperator = false; 
-            int currLen = text.Length; 
-            List<string> argList = []; // build local list to add onto master list 
-            for(int i = 0; i < currLen; i++){
-                summedLength++;
-                if (text[i] == ' ') {
-                    argList.Add(text[..i]); 
-                    // must continue to parse args up to an operator being found 
-                    text = text[text[..i].Length..]; // slice up to this point 
-                    text = text.Trim();
-                    currLen = text.Length; 
-                    i = -1; 
-                }
-                else if (text[i] == '>' || text[i] == '|'){ // just do this for now not considering if it's a valid part of the commands args  (ex. echo "this | text")
-                    if(!string.IsNullOrWhiteSpace(text[..i])) {
-                        argList.Add(text[..i]);
-                    }
-                    text = text[i..];
-                    text = text.Trim();
-                    hasOperator = true; 
-                    break; 
-                }
-                else if(i + 1 == text.Length) {// we now reached the end and no operator so the inclusive of last index we have another arg to add
-                    int j = i + 1;  
-                    argList.Add(text[..j]);
-                    text = string.Empty;
-                    break; 
-                }
-            }
-            args.Add(argList);
-
-            // 3) get the operator and it's file 
-            if(hasOperator) {
-                // Logger.Log($"Has Operator? {hasOperator}", LogLevel.Debug);
-                // Logger.Log($"Text: {text}", LogLevel.Debug); 
-                for(int i = 0; i < text.Length; i++) {
-                    summedLength++;
-                    if(text[i] == ' ') {// passed operator, take from slice 
-                        operators.Add(text[..i]);
-                        text = text[i..].Trim();
-                        // get the file name but nothing more - i know this is nested like crazy but it'll do for now 
-                        for(int j = 0; j < text.Length; j++) {
-                            if(text[j] == ' ') {
-                                redirectFileNames.Add(text[..i].Trim());
-                                break;
-                            }
-                            else if(j + 1 == text.Length) {
-                                int k = j + 1; 
-                                redirectFileNames.Add(text[..k]);
-                                text = string.Empty;
-                                break;
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-
-        // 4) put execution plan together 
-        var executionPlan = new Dictionary<int, CommandInfo>();
-        for(int i = 0; i < commands.Count; i++) {
-            executionPlan[i] = new CommandInfo {
-                Command = commands[i].ToLower() ?? string.Empty, 
-                Args = i < args.Count ? [.. args[i]] : [string.Empty], // ToArray equivalent 
-                Operator = i < operators.Count ? operators[i] : string.Empty,
-                RedirectFileName = i < redirectFileNames.Count ? redirectFileNames[i] : string.Empty
-            };
-
-            Logger.Log($"Command: {executionPlan[i].Command}", LogLevel.Debug);
-            Logger.Log($"Args:", LogLevel.Debug);
-            foreach(string str in executionPlan[i].Args) Logger.Log(str, LogLevel.Debug);
-            Logger.Log($"Operator: {executionPlan[i].Operator}", LogLevel.Debug);
-            Logger.Log($"Redirect File Name: {executionPlan[i].RedirectFileName}\n\n", LogLevel.Debug);
-        }
-
-        return executionPlan; 
-    }
-
     // execute normally, just return a status code (int) 
     static int ExecuteSolo(CommandInfo? ci) {
         CommandInfo item = ci ?? default;
@@ -256,19 +105,22 @@ partial class Program
             // Logger.Log($"Executing builtin {item.Command}", LogLevel.Debug);
             resp = ExecuteBuiltin(item);
         }
-        else if (IsCommandExecutableFromPATH(item.Command)) {
+        else if (utilities.IsCommandExecutableFromPATH(item.Command)) {
             Logger.Log($"Executing in PATH {item.Command}", LogLevel.Debug);
             resp = ExecuteInPATH(item);
+        }
+        else if (item.Command == "exit") {
+            Environment.Exit(0);
+            return default;
         }
         else {
             Console.WriteLine($"{item.Command}: command not found");
             return 1;
         }
 
-
         bool isOperatorNullOrEmpty = string.IsNullOrEmpty(item.Operator);
         if (!isOperatorNullOrEmpty && item.Operator.Contains('>')) {
-            return WriteOutputToFile(item, resp);
+            return utilities.WriteOutputToFile(item, resp);
         }
         if (!isOperatorNullOrEmpty && item.Operator.Contains('|')) {
             //return PipeToCommand() // idk if this is how I want to do pipe yet ... instead maybe do it different or mark pipe-to command as next command and have it handled upstream in main loop 
@@ -285,22 +137,31 @@ partial class Program
         bool? append = false, 
         bool? pipe = false
         ) {
-        CommandReturnStruct response;
-        response.Output = [string.Empty]; 
+
+        CommandReturnStruct response = new()
+        {
+            Output = [string.Empty], 
+            ReturnCode = -1, 
+            Error = string.Empty 
+        };
         // 0 : success 
         // 1 : fail 
         if (commandsDict.ContainsKey(item.Command)) {
             // is a builtin, run through switch-case 
             response = ExecuteBuiltin(item);
         }
-        else if (IsCommandExecutableFromPATH(item.Command)) {
+        else if (utilities.IsCommandExecutableFromPATH(item.Command)) {
             response = ExecuteInPATH(item);
+        }
+        else if (item.Command == "exit") {
+            Environment.Exit(0);
         }
         else {
             Console.WriteLine($"{item.Command}: command not found");
             response.ReturnCode = 1;
             response.Error = $"command {item.Command}: not found";
         }
+
         if (redirect == true || append == true || pipe == true) {
             // not a console write, route output into next. 
             // CommandInfo ci = item2 ?? default;
@@ -324,7 +185,7 @@ partial class Program
             // if(item2 != null){
             //     ExecuteSolo(item2); // no need for return, it will handle it's own response output 
             // }
-            WriteOutputToFile(item, response); 
+            utilities.WriteOutputToFile(item, response); 
         }
         return new CommandReturnStruct {
             Output = [string.Empty],
@@ -335,20 +196,17 @@ partial class Program
     static CommandReturnStruct ExecuteBuiltin(CommandInfo item) {
         switch(item.Command) {
             case "echo":
-                return Echo(item.Args);
+                return echo.Run(item.Args);
             case "type": 
-                return Type(item.Args);
+                return type.Run(item.Args);
             case "pwd": 
-                return PrintWorkingDirectory();
+                return pwd.Run();
             case "cd":
-                return ChangeDirectory(item.Args);
+                return cd.Run(item.Args);
             case "cat":
-                return Cat(item.Args);
+                return cat.Run(item.Args);
             case "ls":
-                return Ls(item.Args);
-            case "exit": 
-                Environment.Exit(0);
-                break;
+                return ls.Run(item.Args);
             default:
                 break;
         }
@@ -383,190 +241,6 @@ partial class Program
         return new CommandReturnStruct {Output = output, ReturnCode = 0, Error = error};
     }
 
-#region builtins 
-    static CommandReturnStruct Echo(string[] args) { 
-        if (args.Length < 1) args = [" "]; 
-        return new CommandReturnStruct {
-            Output = [string.Join(" ", args)], 
-            ReturnCode = 0, 
-            Error = string.Empty
-        };
-    }
-
-    static CommandReturnStruct Type(string[] args) {   
-        string[] output = [string.Empty]; 
-        string error = string.Empty; 
-        string command = string.Join(" ", args);                                               
-
-        if (string.IsNullOrEmpty(command)) {     
-            return new CommandReturnStruct {
-                Output = output,  
-                ReturnCode = 1, 
-                Error = $"{command}: not found"  
-            };                                             
-        }                                                               
-                                                                        
-        // Check if command is a builtin                                
-        if (commandsDict.ContainsKey(command)) {              
-            return new CommandReturnStruct {
-                Output = [$"{command} is a shell builtin"], 
-                ReturnCode = 0, 
-                Error = error
-            };         
-        }                                                               
-                                                                        
-        // Search in PATH                                               
-        string path = GetExecutableFromPATH(command);                        
-        if (!string.IsNullOrEmpty(path)) {      
-            return new CommandReturnStruct {
-                Output = [$"{command} is {path}"], 
-                ReturnCode = 0, 
-                Error = error
-            };
-        } else {                                                        
-            return new CommandReturnStruct {
-                Output = output, 
-                ReturnCode = 1, 
-                Error = $"{command}: not found"  // Fixed: no semicolon
-            };  // Added closing semicolon here
-        }                               
-    }                                                           
-
-    static CommandReturnStruct PrintWorkingDirectory() {
-        string workingDirectory = System.IO.Directory.GetCurrentDirectory();
-        return new CommandReturnStruct {
-            Output = [workingDirectory], 
-            ReturnCode = 0, 
-            Error = string.Empty
-        };
-    }
-
-    static CommandReturnStruct ChangeDirectory(string[] args) {
-        const int BASE_CAPACITY = 10;
-        string[] output = new string[BASE_CAPACITY]; 
-        int returnCode = -1;
-        string error = string.Empty; 
-        string path = string.Join(' ', args);
-        // Absolute paths, like /usr/local/bin. (starts with / )
-        // Relative paths, like ./, ../, ./dir. (starts with . )
-        // The ~ character, which represents the user's home directory. (starts with ~ )
-        if (path.StartsWith('/') || path.StartsWith('.')) {
-            try
-            {
-                Directory.SetCurrentDirectory(path);
-            }
-            catch (Exception)
-            {
-                error = $"cd: {path}: No such file or directory";
-                returnCode = 1;
-            }
-        }
-        else if (path.StartsWith('~')) {
-            try
-            {
-                string homePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                Directory.SetCurrentDirectory(homePath);
-            }
-            catch (Exception)
-            {
-                error = $"cd: {path}: No such file or directory";
-                returnCode = 1;
-            }
-        }
-        else {
-            error = $"cd: {path}: No such file or directory";
-            returnCode = 1;
-        }
-        return new CommandReturnStruct {
-            Output = output, 
-            ReturnCode = returnCode, 
-            Error = error
-        };
-    }
-
-    static CommandReturnStruct Cat(string[] args) {
-        StringBuilder contents = new();
-        string filePath = string.Join(" ", args);
-        foreach(string line in File.ReadLines(filePath)) {
-            contents.Append(line);
-        }
-        return new CommandReturnStruct {
-            Output = [contents.ToString()], 
-            ReturnCode = 0, 
-            Error = string.Empty
-        };
-    }
-
-    // fix this up when avail 
-    static CommandReturnStruct Ls(string[] args) {
-        string error = string.Empty; 
-        int returnCode = -1;
-        // if no file path arg then its 'ls' and we just show current directory 
-        Dictionary<string, bool> LsArgs = new() {
-            ["-1"] = true, 
-            ["l"] = true 
-        };
-        // find the file path (if it exists) 
-        string path = string.Empty; 
-        string argsCombined = string.Join(" ", args); 
-        if(!LsArgs.ContainsKey(argsCombined)){
-            // add as path  
-            path = argsCombined; 
-        }
-        // else, argsCombined must be just be path, now check if path is valid  
-        if(string.IsNullOrEmpty(path)) path = "."; // is argsCombined was args, then set path to current directory 
-        bool exists = File.Exists(path) || Directory.Exists(path); 
-
-        List<string> output = [];
-
-        if (exists) { // path would always exist here so long as argsCombined isn't an invalid path 
-            if(args.Length > 0) { 
-                string arg = args[0]; // just assume one arg for ls before path 
-                switch(arg) {
-                    case "-1": 
-                        System.Console.WriteLine("case -1 hit");
-                        foreach(var f in Directory.EnumerateFileSystemEntries(path)) {
-                            output.Add(f);
-                        }
-                        returnCode = 0; 
-                        break;
-                    case "":
-                        // no arg besides path?
-                        string content = string.Join(" ", Directory.GetFiles(path));
-                        output.Add(content); // just all space seperated in the first element 
-                        returnCode = 0;
-                        break;
-                    case ".":
-                        // no arg besides path?
-                        output.Add(string.Join(" ", Directory.GetFiles(path))); // just all space seperated in the first element 
-                        returnCode = 0;
-                        break;
-                    default: 
-                        Console.WriteLine($"arg '{arg}' not recognized for ls");
-                        returnCode = 1; 
-                        break;
-                }
-            }
-            else{
-                Console.WriteLine("else hit."); // always getting hit right now 
-                string content = string.Join(" ", Directory.GetFiles(path));
-                output.Add(content); // just all space seperated in the first element 
-                returnCode = 0;
-            }
-        }
-        else {
-            error = $"ls: '{path}' does not exist.";
-            returnCode = 1; 
-        }
-
-        return new CommandReturnStruct {
-            Output = output.ToArray() ?? [string.Empty], 
-            ReturnCode = returnCode, 
-            Error = error
-        };
-    }
-
-#endregion 
     static int OutputResponse(CommandReturnStruct response) {
         // now, handle the output of the command (stdout, stderr)
         if (response.Output != null && response.Output.Length > 0)
@@ -587,106 +261,7 @@ partial class Program
 
         return 1;
     }
-    static bool IsCommandExecutableFromPATH(string command) {
-        string? paths = Environment.GetEnvironmentVariable("PATH");
-        if (string.IsNullOrEmpty(paths)){
-            return false;
-        }
-
-        foreach (var path in paths.Split(':')) {
-            string fullPath = Path.Combine(path, command);
-            if (File.Exists(fullPath)) {
-                if(access(fullPath, X_OK) == 0) { 
-                    Logger.Log("Command is executable from PATH", LogLevel.Debug);
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-    static string GetExecutableFromPATH(string command) {
-        string? paths = Environment.GetEnvironmentVariable("PATH");
-        if (string.IsNullOrEmpty(paths)) {
-            return string.Empty; 
-        }
-        foreach (var path in paths.Split(':')) {
-            string fullPath = Path.Combine(path, command);
-            if (File.Exists(fullPath)) {
-                if(access(fullPath, X_OK) == 0) {
-                    return fullPath; 
-                }
-            }
-        }
-        return string.Empty;
-    }
-    
-    static int WriteOutputToFile(CommandInfo item, CommandReturnStruct response) {
-        if(!string.IsNullOrEmpty(item.RedirectFileName)){
-            string content = string.Join(" ", response.Output);
-            try {
-                File.WriteAllText(item.RedirectFileName, content);
-                return 0;
-            }
-            catch (Exception e) {
-                Console.WriteLine($"Exception: {e}");
-                return 1; 
-            }
-        }
-        else {
-            Console.WriteLine($"error: cannot write to file '{item.RedirectFileName}'");
-            return 1;
-        }
-    }
-
-    // static bool IsWritableFile(string filePath)
-    // {
-    //     try
-    //     {
-    //         // Check if the file exists
-    //         if (!File.Exists(filePath))
-    //             return false;
-
-    //         // Get file attributes
-    //         FileInfo fileInfo = new FileInfo(filePath);
-
-    //         // Check if the file is read-only
-    //         if ((fileInfo.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
-    //             return false;
-
-    //         // Try to open the file with write permissions
-    //         using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Write))
-    //         {
-    //             // Successfully opened the file, so it's writable
-    //             return true;
-    //         }
-    //     }
-    //     catch (Exception)
-    //     {
-    //         // If an error occurs (e.g., no permission), return false
-    //         return false;
-    //     }
-    // }
 
     [GeneratedRegex(@"(?<=\S)(?=\s)|(?<=\s)(?=\S)")]
     private static partial Regex MyRegex();
-
-    public enum LogLevel {
-        Error, 
-        Debug, 
-        None
-    }
-
-    public static class Logger
-    {
-        public static LogLevel CurrentLevel = LogLevel.None;
-
-        public static void Log(string message, LogLevel level)
-        {
-            if (level >= CurrentLevel)
-            {
-                Console.WriteLine($"[{level}] {message}");
-            }
-        }
-    }
-
 }

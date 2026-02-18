@@ -1,1 +1,0 @@
-./codecrafters-shell.csproj ./.DS_Store ./codecrafters-shell.sln ./codecrafters.yml ./.gitignore ./.gitattributes

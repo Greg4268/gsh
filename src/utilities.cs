@@ -4,21 +4,16 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Runtime.InteropServices;
 
-#pragma warning disable CS8981
+#pragma warning disable CS8981, CA2101, SYSLIB1054, IDE1006
 
 namespace src
 {
     public class utilities
     {
-        // Unix file permission constants
-        private const int S_IXUSR = 0x40; // owner execute
-        private const int S_IXGRP = 0x08; // group execute
-        private const int S_IXOTH = 0x01; // others execute
         // Import chmod function for checking execute permissions
         [DllImport("libc", SetLastError = true)]
         private static extern int access(string pathname, int mode);
-        private const int F_OK = 0; // check for file existence
-        private const int X_OK = 1; // check for execute permission
+        private const int X_OK = 1; 
 
         public static bool IsCommandExecutableFromPATH(string command) {
             string? paths = Environment.GetEnvironmentVariable("PATH");
@@ -38,6 +33,22 @@ namespace src
             return false;
         }
 
+        public static string GetExecutableFromPATH(string command) {
+            string? paths = Environment.GetEnvironmentVariable("PATH");
+            if (string.IsNullOrEmpty(paths)) {
+                return string.Empty; 
+            }
+            foreach (var path in paths.Split(':')) {
+                string fullPath = Path.Combine(path, command);
+                if (File.Exists(fullPath)) {
+                    if(access(fullPath, X_OK) == 0) {
+                        return fullPath; 
+                    }
+                }
+            }
+            return string.Empty;
+        }
+
         public static int WriteOutputToFile(CommandInfo item, CommandReturnStruct response) {
             if(!string.IsNullOrEmpty(item.RedirectFileName)){
                 string content = string.Join(" ", response.Output);
@@ -46,12 +57,12 @@ namespace src
                     return 0;
                 }
                 catch (Exception e) {
-                    Console.WriteLine($"Exception: {e}");
+                    Logger.Log($"Exception: {e}", LogLevel.Error);
                     return 1; 
                 }
             }
             else {
-                Console.WriteLine($"error: cannot write to file '{item.RedirectFileName}'");
+                Logger.Log($"error: cannot write to file '{item.RedirectFileName}'", LogLevel.Error);
                 return 1;
             }
         }

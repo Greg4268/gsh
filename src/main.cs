@@ -18,6 +18,14 @@ partial class Program
         ["ls"] = true, 
     }; 
 
+    static readonly Dictionary<string, bool> operatorDict = new() 
+    {
+        [">"] = true, 
+        ["1>"] = true, 
+        ["|"] = true, 
+        [">>"] = true, 
+    };
+
     // use a dictionary to store parsed user input for execution 
     public static Dictionary<int, CommandInfo> executionPlan = [];
 
@@ -27,45 +35,24 @@ partial class Program
         while (true) {
             Console.Write("$ ");
             string? input = Console.ReadLine();
-            if (string.IsNullOrEmpty(input)) continue; 
+            if (string.IsNullOrEmpty(input) || string.IsNullOrEmpty(input.Trim())) continue; // skip whitespace and no input 
 
-            executionPlan = parse.Run(input.Trim());
-            if ( executionPlan.Count == 0 ) {
-                continue; // dict is empty, just request new user input 
-            }
-             
-            List<KeyValuePair<int, CommandInfo>> items = executionPlan
-                                                            .OrderBy(c => c.Key)
-                                                            .ToList();
+            executionPlan = parse.Run(input.Trim()); // execution plan will always have a value at this point. 
+            List<KeyValuePair<int, CommandInfo>> items = executionPlan.OrderBy(c => c.Key).ToList(); 
 
             CommandReturnStruct resp; 
-            resp.ReturnCode = -1; 
-            int soloExecutionReturnCode = -1; 
-
+            resp.ReturnCode = -1;
             for ( int i = 0; i < items.Count; i++ ) {
                 CommandInfo current = items[i].Value;
                 bool hasNext = i + 1 < items.Count; 
+                // if there's an operator but no next item them we lose the operator? we wouldn't enter executesolo with current logic 
 
-                Logger.Log($"Current Command: {current.Command}", LogLevel.Debug);
-                Logger.Log($"HasNext? => {hasNext}", LogLevel.Debug);
-
+                //Logger.Log($"has next, {hasNext}", LogLevel.Debug);
                 if (hasNext) {
                     CommandInfo next = items[i + 1].Value;
                     Logger.Log($"Next Command: {next.Command}", LogLevel.Debug);
-                    
-                    if (current.Operator == ">" || current.Operator == "1>") {
-                        // output stdout to file current.Command (echo) current.Operator (>) current.Args(['some text', 'file.txt'])? 
-                        // so, I'd have to determine the type of input it is (valid, invalid, which it is too)?
-                        resp = Execute(current, next, true, false, false);
-                    }
-                    else if (current.Operator == ">>") {
-                        // append stdout to file 
-                        resp = Execute(current, next, false, true, false);
-                    }
-                    else if (current.Operator == "|") {
-                        // pipe current stdout to next stdin 
-                        resp = Execute(current, next, false, false, true);
-                    }
+
+                    if(operatorDict.ContainsKey(current.Operator)) resp = Execute(current, next);
                     else if (current.Operator == "||") {
                         // execute next only if current fails 
                         resp = Execute(current); 
@@ -82,31 +69,22 @@ partial class Program
                     }
                 } 
                 else {
-                    // no command after, execute normally 
-                    soloExecutionReturnCode = ExecuteSolo(current);
+                    resp.ReturnCode = ExecuteSolo(current);
                 }
-                if (resp.ReturnCode != 0 || soloExecutionReturnCode != 0) {
-                    // there was an error. Cancel execution 
-                    Logger.Log("Invalid command. Please try again.", LogLevel.Error);
-                }
+                // do nothing with return code for now since bad commands are handled by execute functions. 
+                // 0 : success 
+                // 1 : fail 
             }
         }
     }
 
-    // execute normally, just return a status code (int) 
     static int ExecuteSolo(CommandInfo? ci) {
         CommandInfo item = ci ?? default;
         CommandReturnStruct resp;
-        // 0 : success 
-        // 1 : fail 
-        // Logger.Log($"is {item.Command} a builtin: {commandsDict.ContainsKey(item.Command)}", LogLevel.Debug);
         if (commandsDict.ContainsKey(item.Command)) {
-            // is a builtin, run through switch-case 
-            // Logger.Log($"Executing builtin {item.Command}", LogLevel.Debug);
             resp = ExecuteBuiltin(item);
         }
         else if (utilities.IsCommandExecutableFromPATH(item.Command)) {
-            Logger.Log($"Executing in PATH {item.Command}", LogLevel.Debug);
             resp = ExecuteInPATH(item);
         }
         else if (item.Command == "exit") {
@@ -117,81 +95,50 @@ partial class Program
             Console.WriteLine($"{item.Command}: command not found");
             return 1;
         }
-
-        bool isOperatorNullOrEmpty = string.IsNullOrEmpty(item.Operator);
-        if (!isOperatorNullOrEmpty && item.Operator.Contains('>')) {
-            return utilities.WriteOutputToFile(item, resp);
-        }
-        if (!isOperatorNullOrEmpty && item.Operator.Contains('|')) {
-            //return PipeToCommand() // idk if this is how I want to do pipe yet ... instead maybe do it different or mark pipe-to command as next command and have it handled upstream in main loop 
-        }
-
-        return OutputResponse(resp); // don't output the response here if this method will get called by other Execute methods?... since output may need to be passed into redirect 
+        return OutputResponse(resp); 
     }
 
-    // overload method for Execute to handle redirect, append to file, pipe
-    static CommandReturnStruct Execute(
-        CommandInfo item, 
-        CommandInfo? item2 = null, 
-        bool? redirect = false, 
-        bool? append = false, 
-        bool? pipe = false
-        ) {
+    static CommandReturnStruct Execute(CommandInfo item, CommandInfo? item2 = null) {
+        CommandReturnStruct resp; 
 
-        CommandReturnStruct response = new()
-        {
-            Output = [string.Empty], 
-            ReturnCode = -1, 
-            Error = string.Empty 
-        };
-        // 0 : success 
-        // 1 : fail 
         if (commandsDict.ContainsKey(item.Command)) {
-            // is a builtin, run through switch-case 
-            response = ExecuteBuiltin(item);
+            resp = ExecuteBuiltin(item);
         }
         else if (utilities.IsCommandExecutableFromPATH(item.Command)) {
-            response = ExecuteInPATH(item);
+            resp = ExecuteInPATH(item);
         }
         else if (item.Command == "exit") {
             Environment.Exit(0);
+            return default;
         }
         else {
             Console.WriteLine($"{item.Command}: command not found");
-            response.ReturnCode = 1;
-            response.Error = $"command {item.Command}: not found";
+            return new CommandReturnStruct {
+                ReturnCode = 1,
+                Error = $"command {item.Command}: not found",
+                Output = [string.Empty]
+            };
         }
 
-        if (redirect == true || append == true || pipe == true) {
-            // not a console write, route output into next. 
-            // CommandInfo ci = item2 ?? default;
-            // int idx = -1; 
-            // get index of next available spot 
-            // for (int i = 0; i < ci.Args.Length; i++){
-            //     if (ci.Args[i] == null) { // maybe do IsNullOrEmpty instead? 
-            //         if (i + 2 < ci.Args.Length) idx = i; 
-            //         break; 
-            //     }
-            // }
-            // if (idx != -1){
-            //     //ci.Args[idx] = [response.Output]; 
-            //     ci.Args[idx] = "placeholder";
-            //     ci.Args[idx + 1] = response.ReturnCode.ToString(); 
-            //     ci.Args[idx + 2] = response.Error ?? string.Empty;
-            // }
-            // else {
-            //     Console.WriteLine("idx was -1. Array is maybe full?");
-            // }
-            // if(item2 != null){
-            //     ExecuteSolo(item2); // no need for return, it will handle it's own response output 
-            // }
-            utilities.WriteOutputToFile(item, response); 
+        switch(item.Operator) {
+            case "|": 
+                // TODO 
+                break; 
+            case ">": 
+                utilities.WriteOutputToFile(item, resp);
+                break; 
+            case ">>": 
+                // TODO 
+                break; 
+            case "1>": 
+                // TODO 
+                break; 
+            default: 
+                break; 
         }
-        return new CommandReturnStruct {
-            Output = [string.Empty],
-            ReturnCode = OutputResponse(response), // dont output the response here if this method will get called by other Execute methods?... since output may need to be passed into redirect 
-            Error = string.Empty,
-        };
+
+        resp.ReturnCode = OutputResponse(resp); 
+        return resp;
     }
     static CommandReturnStruct ExecuteBuiltin(CommandInfo item) {
         switch(item.Command) {
@@ -220,29 +167,24 @@ partial class Program
         var process = new Process();                       
         process.StartInfo.FileName = item.Command;              
         process.StartInfo.Arguments = string.Join(' ', item.Args);           
-        process.StartInfo.UseShellExecute = false;     // enable / disable redirects,pipes,etc.     
+        process.StartInfo.UseShellExecute = false;     // enable/disable redirects,pipes,etc.     
         process.StartInfo.RedirectStandardOutput = true;  
         process.StartInfo.RedirectStandardError = true; 
-
         process.Start();                                   
 
         string[] output = [process.StandardOutput.ReadToEnd()];
         string error = process.StandardError.ReadToEnd();
 
-        Logger.Log($"output: {output[0]}", LogLevel.Debug);
-
         process.WaitForExit();  
 
-        // display errors 
-        if (!string.IsNullOrEmpty(error)){
-            Logger.Log("stderr output is not null or empty. something happened", LogLevel.Debug);
-            return new CommandReturnStruct {Output = output, ReturnCode = 1, Error = error};
-        }
-        return new CommandReturnStruct {Output = output, ReturnCode = 0, Error = error};
+        return new CommandReturnStruct {
+            Output = output, 
+            ReturnCode = !string.IsNullOrEmpty(error) ? 1 : 0, 
+            Error = error 
+        };
     }
 
     static int OutputResponse(CommandReturnStruct response) {
-        // now, handle the output of the command (stdout, stderr)
         if (response.Output != null && response.Output.Length > 0)
         {
             foreach (string item in response.Output)
@@ -261,7 +203,4 @@ partial class Program
 
         return 1;
     }
-
-    [GeneratedRegex(@"(?<=\S)(?=\s)|(?<=\s)(?=\S)")]
-    private static partial Regex MyRegex();
 }

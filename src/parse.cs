@@ -2,13 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-#pragma warning disable CS8981
+#pragma warning disable CS8981, IDE1006
 
 namespace src
 {
     public static class parse
     {
-        // TODO: build parser 
+        // TODO: improve parser logic. It works well for very basic tasks but benchmarking needs to be done 
         public static Dictionary<int, CommandInfo> Run(string? text) { 
             // nothing in here so return everything as empty 
             if(string.IsNullOrEmpty(text)){

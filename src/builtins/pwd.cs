@@ -9,7 +9,7 @@ namespace src.builtins
     public class pwd
     {
         public static CommandReturnStruct Run() {
-            string workingDirectory = System.IO.Directory.GetCurrentDirectory();
+            string workingDirectory = Directory.GetCurrentDirectory();
             return new CommandReturnStruct {
                 Output = [workingDirectory], 
                 ReturnCode = 0, 

@@ -6,9 +6,11 @@ using System.Threading.Tasks;
 
 namespace src.builtins
 {
-    public class ls
+    public class ls : IBuiltinCommand
     {
-        public static CommandReturnStruct Run(string[] args) {
+        public string Name => "LS";
+        public string Description => "List directories and files";
+        public CommandReturnStruct Run(string[] args) {
             string error = string.Empty; 
             int returnCode = -1;
             // if no file path arg then its 'ls' and we just show current directory 

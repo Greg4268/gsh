@@ -8,8 +8,10 @@ using src;
 
 namespace src.builtins
 {
-    public class type
+    public class type : IBuiltinCommand
     {
+        public string Name => "type";
+        public string Description => "Displays whether provided command is a builtin or path executable";
         static readonly Dictionary<string, bool> commandsDict = new() // preferably not have this split between multiple files 
         {
             ["echo"] = true, 
@@ -20,7 +22,7 @@ namespace src.builtins
             ["ls"] = true, 
         }; 
 
-        public static CommandReturnStruct Run(string[] args) {
+        public CommandReturnStruct Run(string[] args) {
             string[] output = [string.Empty]; 
             string error = string.Empty; 
             string command = string.Join(" ", args);                                               

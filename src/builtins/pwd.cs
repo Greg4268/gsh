@@ -6,9 +6,11 @@ using System.Threading.Tasks;
 
 namespace src.builtins
 {
-    public class pwd
+    public class pwd : IBuiltinCommand
     {
-        public static CommandReturnStruct Run() {
+        public string Name => "pwd"; 
+        public string Description => "Prints the working directory";
+        public CommandReturnStruct Run(string[] args) {
             string workingDirectory = Directory.GetCurrentDirectory();
             return new CommandReturnStruct {
                 Output = [workingDirectory], 

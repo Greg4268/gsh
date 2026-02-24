@@ -8,15 +8,17 @@ using src.builtins;
 #pragma warning disable CS8981, CA2101, SYSLIB1054, IDE0305
 partial class Program
 {
-    static readonly Dictionary<string, bool> commandsDict = new()
-    {
-        ["echo"] = true, 
-        ["type"] = true, 
-        ["pwd"] = true,
-        ["cd"] = true,
-        ["cat"] = true,
-        ["ls"] = true, 
-    }; 
+    private static Dictionary<string, IBuiltinCommand> _builtins;
+
+    // static readonly Dictionary<string, bool> commandsDict = new()
+    // {
+    //     ["echo"] = true, 
+    //     ["type"] = true, 
+    //     ["pwd"] = true,
+    //     ["cd"] = true,
+    //     ["cat"] = true,
+    //     ["ls"] = true, 
+    // }; 
 
     static readonly Dictionary<string, bool> operatorDict = new() 
     {
@@ -31,6 +33,7 @@ partial class Program
 
     static void Main()
     { 
+        _builtins = BuiltinRegistry.LoadBuiltins();
         Console.Clear();
         while (true) {
             Console.Write("$ ");
@@ -81,7 +84,7 @@ partial class Program
     static int ExecuteSolo(CommandInfo? ci) {
         CommandInfo item = ci ?? default;
         CommandReturnStruct resp;
-        if (commandsDict.ContainsKey(item.Command)) {
+        if (_builtins.ContainsKey(item.Command)) {
             resp = ExecuteBuiltin(item);
         }
         else if (utilities.IsCommandExecutableFromPATH(item.Command)) {
@@ -101,7 +104,7 @@ partial class Program
     static CommandReturnStruct Execute(CommandInfo item, CommandInfo? item2 = null) {
         CommandReturnStruct resp; 
 
-        if (commandsDict.ContainsKey(item.Command)) {
+        if (_builtins.ContainsKey(item.Command)) {
             resp = ExecuteBuiltin(item);
         }
         else if (utilities.IsCommandExecutableFromPATH(item.Command)) {
@@ -143,17 +146,17 @@ partial class Program
     static CommandReturnStruct ExecuteBuiltin(CommandInfo item) {
         switch(item.Command) {
             case "echo":
-                return echo.Run(item.Args);
+                return _builtins["echo"].Run(item.Args);
             case "type": 
-                return type.Run(item.Args);
+                return _builtins["type"].Run(item.Args);
             case "pwd": 
-                return pwd.Run();
+                return _builtins["pwd"].Run(item.Args); 
             case "cd":
-                return cd.Run(item.Args);
+                return _builtins["cd"].Run(item.Args);
             case "cat":
-                return cat.Run(item.Args);
+                return _builtins["cat"].Run(item.Args);
             case "ls":
-                return ls.Run(item.Args);
+                return _builtins["ls"].Run(item.Args);
             default:
                 break;
         }

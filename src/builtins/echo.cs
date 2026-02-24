@@ -7,9 +7,11 @@ using src;
 
 namespace src.builtins
 {
-    public static class echo
+    public class echo : IBuiltinCommand
     {
-        public static CommandReturnStruct Run(string[] args) {
+        public string Name => "Echo";
+        public string Description => "Prints string contents provided as args";
+        public CommandReturnStruct Run(string[] args) {
             if (args.Length < 1) args = [" "]; 
             return new CommandReturnStruct {
                 Output = [string.Join(" ", args)], 

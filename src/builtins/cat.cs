@@ -7,9 +7,11 @@ using System.Text;
 
 namespace src.builtins
 {
-    public class cat
+    public class cat : IBuiltinCommand
     {
-        public static CommandReturnStruct Run(string[] args) {
+        public string Name => "Cat"; 
+        public string Description => "Prints the contents of a given file";  
+        public CommandReturnStruct Run(string[] args) {
             StringBuilder contents = new();
             string filePath = string.Join(" ", args);
             foreach(string line in File.ReadLines(filePath)) {

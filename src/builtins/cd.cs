@@ -6,9 +6,11 @@ using System.Threading.Tasks;
 
 namespace src.builtins
 {
-    public class cd
+    public class cd : IBuiltinCommand
     {
-        public static CommandReturnStruct Run(string[] args) {
+        public string Name => "Change Directory";
+        public string Description => "Allow you to change directory";
+        public CommandReturnStruct Run(string[] args) {
             const int BASE_CAPACITY = 10;
             string[] output = new string[BASE_CAPACITY]; 
             int returnCode = -1;

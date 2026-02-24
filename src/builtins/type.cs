@@ -1,11 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Runtime.InteropServices;
-using src; 
 #pragma warning disable CS8981, IDE1006
-
 namespace src.builtins
 {
     public class type : IBuiltinCommand

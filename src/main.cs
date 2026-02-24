@@ -1,34 +1,18 @@
-using System.Linq;
-using System.IO;
 using System.Diagnostics;
-using System.Text;
-using System.Text.RegularExpressions;
 using src;
-using src.builtins;
 #pragma warning disable CS8981, CA2101, SYSLIB1054, IDE0305
 partial class Program
 {
     private static Dictionary<string, IBuiltinCommand> _builtins;
 
-    // static readonly Dictionary<string, bool> commandsDict = new()
-    // {
-    //     ["echo"] = true, 
-    //     ["type"] = true, 
-    //     ["pwd"] = true,
-    //     ["cd"] = true,
-    //     ["cat"] = true,
-    //     ["ls"] = true, 
-    // }; 
-
-    static readonly Dictionary<string, bool> operatorDict = new() 
+    static readonly Dictionary<string, string> operatorDict = new() 
     {
-        [">"] = true, 
-        ["1>"] = true, 
-        ["|"] = true, 
-        [">>"] = true, 
+        [">"] = "redirect", 
+        ["1>"] = "redirect", 
+        ["|"] = "pipe", 
+        [">>"] = "redirect append", 
     };
 
-    // use a dictionary to store parsed user input for execution 
     public static Dictionary<int, CommandInfo> executionPlan = [];
 
     static void Main()

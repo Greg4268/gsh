@@ -1,14 +1,10 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 #pragma warning disable CS8981,IDE1006
 
 namespace src.builtins
 {
     public class ls : IBuiltinCommand
     {
-        public string Name => "LS";
+        public string Name => "ls";
         public string Description => "List directories and files";
         public CommandReturnStruct Run(string[] args) {
             string error = string.Empty; 

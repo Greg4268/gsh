@@ -8,7 +8,7 @@ namespace src.builtins
         public string Description => "List directories and files";
         public CommandReturnStruct Run(string[] args) {
             string error = string.Empty; 
-            int returnCode = -1;
+            int returnCode;
             // if no file path arg then its 'ls' and we just show current directory 
             Dictionary<string, bool> LsArgs = new() {
                 ["-1"] = true, 

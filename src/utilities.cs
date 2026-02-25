@@ -1,7 +1,5 @@
 using System.Runtime.InteropServices;
-
-#pragma warning disable CS8981, CA2101, SYSLIB1054, IDE1006
-
+#pragma warning disable CA2101, SYSLIB1054, IDE1006
 namespace src
 {
     public class utilities
@@ -72,7 +70,7 @@ namespace src
 
     public static class Logger
     {
-        public static LogLevel CurrentLevel = LogLevel.None;
+        static readonly LogLevel CurrentLevel = LogLevel.None;
 
         public static void Log(string message, LogLevel level)
         {

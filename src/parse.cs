@@ -1,4 +1,4 @@
-#pragma warning disable CS8981, IDE1006
+#pragma warning disable IDE1006
 
 namespace src
 {

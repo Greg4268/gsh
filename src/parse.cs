@@ -4,28 +4,27 @@ namespace src
 {
     public static class parse
     {
-        // TODO: improve parser logic. It works well for very basic tasks but benchmarking needs to be done 
-        public static Dictionary<int, CommandInfo> Run(string? text) { 
-            // nothing in here so return everything as empty 
-            if(string.IsNullOrEmpty(text)){
-                return new Dictionary<int, CommandInfo> {
-                    [0] = new CommandInfo {
-                        Command = string.Empty, 
-                        Args = [string.Empty], 
-                        Operator = string.Empty
-                    }
-                };
-            }
-            
+        /* 
+            TODO: improve parser logic
+
+            Current logic relies on finding the next white space and making assumptions about what the 
+            user put in that place. This works because anything that is parsed into the execution plan that is 
+            not valid will get handled downstream. 
+        */
+        public static Dictionary<int, CommandInfo> Run(string text) { 
             List<string> commands = [];  
             List<List<string>> args = []; 
             List<string> operators = [];
             List<string> redirectFileNames = []; 
             int summedLength = 0; 
 
-            // after trimming, there is not a space (somewhere in middle) -> if there is a command it is by itself and does not have args or operator 
+            /* 
+                at this point, we've trimmed the text if there's 
+                a space, the command is not by itself if there 
+                isn't space we can assume it's just a command
+                so exit early 
+            */
             if ( !text.Contains(' ') ) {
-                //single work, command only probably 
                 return new Dictionary<int, CommandInfo> {
                     [0] = new CommandInfo {
                         Command = text, 
@@ -36,11 +35,12 @@ namespace src
                 };
             }
             
-            // continually parse out command, args, operators and build execution plan 
+            /* 
+                loop through text and extract commands, args, and operators 
+                each loop = one dicionary entry 
+            */
             while (text.Length > summedLength) 
             {
-                // build out one dictionary entry at a time 
-
                 // 1) find the command 
                 for(int i = 0; i < text.Length; i++){
                     summedLength++;
@@ -57,9 +57,11 @@ namespace src
                 bool hasOperator = false; 
                 int currLen = text.Length; 
                 List<string> argList = []; // build local list to add onto master list 
-                for(int i = 0; i < currLen; i++){
+                for(int i = 0; i < currLen; i++)
+                {
                     summedLength++;
-                    if (text[i] == ' ') {
+                    if (text[i] == ' ') 
+                    {
                         argList.Add(text[..i]); 
                         // must continue to parse args up to an operator being found 
                         text = text[text[..i].Length..]; // slice up to this point 
@@ -67,7 +69,8 @@ namespace src
                         currLen = text.Length; 
                         i = -1; 
                     }
-                    else if (text[i] == '>' || text[i] == '|'){ // just do this for now not considering if it's a valid part of the commands args  (ex. echo "this | text")
+                    else if (text[i] == '>' || text[i] == '|') // just do this for now not considering if it's a valid part of the commands args  (ex. echo "this | text")
+                    { 
                         if(!string.IsNullOrWhiteSpace(text[..i])) {
                             argList.Add(text[..i]);
                         }
@@ -76,7 +79,8 @@ namespace src
                         hasOperator = true; 
                         break; 
                     }
-                    else if(i + 1 == text.Length) {// we now reached the end and no operator so the inclusive of last index we have another arg to add
+                    else if(i + 1 == text.Length) // we now reached the end and no operator so the inclusive of last index we have another arg to add
+                    {
                         int j = i + 1;  
                         argList.Add(text[..j]);
                         text = string.Empty;
@@ -87,14 +91,15 @@ namespace src
 
                 // 3) get the operator and it's file 
                 if(hasOperator) {
-                    // Logger.Log($"Has Operator? {hasOperator}", LogLevel.Debug);
-                    // Logger.Log($"Text: {text}", LogLevel.Debug); 
-                    for(int i = 0; i < text.Length; i++) {
+                    for(int i = 0; i < text.Length; i++) 
+                    {
                         summedLength++;
-                        if(text[i] == ' ') {// passed operator, take from slice 
+                        if(text[i] == ' ') // passed operator, take from slice 
+                        {
                             operators.Add(text[..i]);
                             text = text[i..].Trim();
-                            // get the file name but nothing more - i know this is nested like crazy but it'll do for now 
+                            // get the file name but nothing more 
+                            // I know this is nested like crazy but it'll do for now 
                             for(int j = 0; j < text.Length; j++) {
                                 if(text[j] == ' ') {
                                     redirectFileNames.Add(text[..i].Trim());
@@ -114,8 +119,9 @@ namespace src
             }
 
             // 4) put execution plan together 
-            var executionPlan = new Dictionary<int, CommandInfo>();
-            for(int i = 0; i < commands.Count; i++) {
+            var executionPlan = new Dictionary<int, CommandInfo>(); 
+            for(int i = 0; i < commands.Count; i++) 
+            {
                 executionPlan[i] = new CommandInfo {
                     Command = commands[i].ToLower() ?? string.Empty, 
                     Args = i < args.Count ? [.. args[i]] : [string.Empty], // ToArray equivalent 
@@ -132,6 +138,5 @@ namespace src
 
             return executionPlan; 
         }
-
     }
 }

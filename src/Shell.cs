@@ -1,11 +1,12 @@
 using System.Diagnostics;
+#pragma warning disable IDE0305
 namespace src
 {
     public class Shell
     {
-        private static Dictionary<string, IBuiltinCommand> _builtins = new();
+        private static Dictionary<string, IBuiltinCommand> _builtins = [];
         private static Dictionary<int, CommandInfo> executionPlan = [];
-        private readonly string[] operators = [">", "1>", "|", ">>"];
+        public readonly string[] operators = [">", "1>", "|", ">>"]; 
         public void Run()
         {
             _builtins = BuiltinRegistry.LoadBuiltins();
@@ -25,7 +26,6 @@ namespace src
                     bool hasNext = i + 1 < items.Count; 
                     // if there's an operator but no next item them we lose the operator? we wouldn't enter executesolo with current logic 
 
-                    //Logger.Log($"has next, {hasNext}", LogLevel.Debug);
                     if (hasNext) {
                         CommandInfo next = items[i + 1].Value;
                         Logger.Log($"Next Command: {next.Command}", LogLevel.Debug);

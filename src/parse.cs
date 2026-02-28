@@ -42,8 +42,9 @@ namespace src
             while (summedLength < text.Length) 
             {
                 // 1) find the command 
-                string cmd = text[..text.IndexOf(' ')]; 
-                cIdx += !string.IsNullOrEmpty(cmd) ? cmd.Length : 0;  
+                string cmd = text.Contains(' ') ? text[..text.IndexOf(' ', cIdx)] : text[..text.Length]; // if no space we take up to end (out of bounds error here?)
+                // cIdx += !string.IsNullOrEmpty(cmd) ? cmd.Length : 0;  
+                cIdx += cmd.Length; // should never be null here... 
 
                 // 2) find the (optional) args
                 // somehow check that the next thing is not an operator but an arg? 
@@ -52,17 +53,16 @@ namespace src
                 bool hasOperator = false; 
                 for(int i = cIdx; i < text.Length; i++) 
                 {
-                    if (operators.Contains(text[i].ToString())) // idk if this will work but cool if it does 
+                    if (operators.Contains(text[i].ToString())) 
                     {
                         // take arg up to operator then break 
                         argSublist.Add(text[cIdx..text[i-1]]); 
                         hasOperator = true; 
-                        cIdx += text[..i].Length; 
-                        System.Console.WriteLine("hello? ");
+                        cIdx += text[cIdx..text[i-1]].Length; // may need to adjust 
                         break; 
                     } 
-                    int spaceIndex = text.IndexOf(' ', cIdx);
-                    if (spaceIndex == -1)
+                    int spaceIdx = text.IndexOf(' ', cIdx);
+                    if (spaceIdx == -1)
                     {
                         // No more spaces — take the rest of the string
                         string arg = text[cIdx..];
@@ -71,10 +71,10 @@ namespace src
                     }
                     else
                     {
-                        string arg = text[cIdx..spaceIndex];
+                        string arg = text[cIdx..spaceIdx];
                         argSublist.Add(arg);
-                        i = spaceIndex;
-                        cIdx = spaceIndex + 1;
+                        i = spaceIdx;
+                        cIdx = spaceIdx + 1;
                     } 
                 }
 
@@ -83,9 +83,27 @@ namespace src
                 string file = string.Empty; 
                 if(hasOperator) 
                 {
-                    op = text[cIdx..text.IndexOf(' ')];
-                    cIdx += !string.IsNullOrEmpty(op) ? op.Length : 0; 
-                    file = text[cIdx..text.IndexOf(' ')]; 
+                    int opIdx = text.IndexOf(' ', cIdx);
+                    if (opIdx == -1) 
+                    {
+                        op = text[cIdx..];
+                        break; // don't know if this'll behave as I intend. 
+                    }
+                    else
+                    {
+                        op = text[cIdx..opIdx]; 
+                        cIdx = opIdx + 1; 
+                    }
+                    int fileIdx = text.IndexOf(' ', cIdx);
+                    if (fileIdx == -1) 
+                    {
+                        file = text[cIdx..];
+                    }   
+                    else 
+                    {
+                        file = text[cIdx..fileIdx];
+                        cIdx = fileIdx + 1; 
+                    }
                 }
                 
                 // 4) build dictionary 

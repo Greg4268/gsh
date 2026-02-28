@@ -98,6 +98,7 @@ namespace src
                 };
             }
 
+            // should this be in Output response function? how to prevent it from printing 
             switch(item.Operator) {
                 case "|": 
                     // TODO 
@@ -106,7 +107,7 @@ namespace src
                     utilities.WriteOutputToFile(item, resp);
                     break; 
                 case ">>": 
-                    // TODO 
+                    utilities.AppendOutputToFile(item, resp); 
                     break; 
                 case "1>": 
                     // TODO 

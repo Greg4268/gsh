@@ -14,7 +14,6 @@ namespace src
         */
         public static Dictionary<int, CommandInfo> Run(string text) { 
             var executionPlan = new Dictionary<int, CommandInfo>(); 
-            int summedLength = 0; 
 
             /* 
                 at this point, we've trimmed the text if there's 
@@ -39,6 +38,7 @@ namespace src
             */
             int cIdx = 0; // current index in text string 
             int dIdx = 0; // current index in execution plan dictionary 
+            int summedLength = 0; 
             while (summedLength < text.Length) 
             {
                 // 1) find the command 
@@ -58,12 +58,24 @@ namespace src
                         argSublist.Add(text[cIdx..text[i-1]]); 
                         hasOperator = true; 
                         cIdx += text[..i].Length; 
+                        System.Console.WriteLine("hello? ");
                         break; 
                     } 
-                    string arg = text[cIdx..text.IndexOf(' ')];
-                    argSublist.Add(arg);
-                    i += arg.Length;
-                    cIdx += !string.IsNullOrEmpty(arg) ? arg.Length : 0; 
+                    int spaceIndex = text.IndexOf(' ', cIdx);
+                    if (spaceIndex == -1)
+                    {
+                        // No more spaces — take the rest of the string
+                        string arg = text[cIdx..];
+                        argSublist.Add(arg);
+                        break;
+                    }
+                    else
+                    {
+                        string arg = text[cIdx..spaceIndex];
+                        argSublist.Add(arg);
+                        i = spaceIndex;
+                        cIdx = spaceIndex + 1;
+                    } 
                 }
 
                 // 3) get the operator and it's file 
@@ -88,12 +100,13 @@ namespace src
                 foreach(string str in executionPlan[dIdx].Args) Logger.Log(str, LogLevel.Debug);
                 Logger.Log($"Operator: {executionPlan[dIdx].Operator}", LogLevel.Debug);
                 Logger.Log($"Redirect File Name: {executionPlan[dIdx].RedirectFileName}\n\n", LogLevel.Debug);
+
                 dIdx++; 
-                int argsLen = 0; 
-                int opLen = !string.IsNullOrEmpty(op) ? op.Length : 0; 
-                int fileLen = !string.IsNullOrEmpty(file) ? file.Length : 0; 
-                foreach(string arg in argSublist) argsLen += arg.Length;
-                summedLength += cmd.Length + argsLen + opLen + fileLen;
+                summedLength +=
+                    (cmd?.Length ?? 0) +
+                    (op?.Length ?? 0) +
+                    (file?.Length ?? 0) +
+                    argSublist.Sum(arg => arg?.Length ?? 0);
             }
             return executionPlan; 
         }

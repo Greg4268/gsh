@@ -33,16 +33,16 @@ namespace src
                         if(operators.Contains(current.Operator)) resp = Execute(current, next);
                         else if (current.Operator == "||") {
                             // execute next only if current fails 
-                            resp = Execute(current); 
+                            resp = Execute(current, next); 
                             if (resp.ReturnCode != 0) {
-                                Execute(next);
+                                Execute(next, current);
                             }
                         }
                         else if (current.Operator == "&&") {
                             // execute next only if current succeeds 
-                            resp = Execute(current); 
+                            resp = Execute(current, next); 
                             if (resp.ReturnCode == 0) {
-                                Execute(next);
+                                Execute(next, current);
                             }
                         }
                     } 
@@ -76,7 +76,7 @@ namespace src
             return OutputResponse(resp); 
         }
 
-        static CommandReturnStruct Execute(CommandInfo item, CommandInfo? item2 = null) {
+        static CommandReturnStruct Execute(CommandInfo item, CommandInfo item2) {
             CommandReturnStruct resp; 
 
             if (_builtins.ContainsKey(item.Command)) {
@@ -101,7 +101,11 @@ namespace src
             // should this be in Output response function? how to prevent it from printing 
             switch(item.Operator) {
                 case "|": 
-                    // TODO 
+                    if(item2.Command != null)
+                    {
+                        item2.Args = item.Args; 
+                        ExecuteSolo(item2);
+                    }
                     break; 
                 case ">": 
                     utilities.WriteOutputToFile(item, resp);
@@ -110,7 +114,7 @@ namespace src
                     utilities.AppendOutputToFile(item, resp); 
                     break; 
                 case "1>": 
-                    // TODO 
+                    utilities.WriteOutputToFile(item, resp);
                     break; 
                 default: 
                     break; 

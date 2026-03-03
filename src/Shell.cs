@@ -6,7 +6,7 @@ namespace src
     {
         private static Dictionary<string, IBuiltinCommand> _builtins = [];
         private static Dictionary<int, CommandInfo> executionPlan = [];
-        public static void Run()
+        public void Run()
         {
             _builtins = BuiltinRegistry.LoadBuiltins();
             Console.Clear();

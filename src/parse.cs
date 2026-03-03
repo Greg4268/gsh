@@ -4,7 +4,7 @@ namespace src
 {
     public static class parse
     {
-        public static readonly string[] operators = [">", "1>", "|", ">>"]; 
+        public static readonly IReadOnlyList<string> Operators = [">", "1>", "|", ">>", "||", "&&"];
         /* 
             TODO: improve parser logic
 
@@ -53,7 +53,7 @@ namespace src
                 bool hasOperator = false; 
                 for(int i = cIdx; i < text.Length; i++) 
                 {
-                    if (operators.Contains(text[i].ToString())) 
+                    if (Operators.Contains(text[i].ToString())) 
                     {
                         // take arg up to operator then break 
                         argSublist.Add(text[cIdx..text[i-1]]); 

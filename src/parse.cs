@@ -4,6 +4,7 @@ namespace src
 {
     public static class parse
     {
+        public static readonly IReadOnlyList<string> Operators = [">", "1>", "|", ">>", "||", "&&"];
         /* 
             TODO: improve parser logic
 
@@ -12,11 +13,7 @@ namespace src
             not valid will get handled downstream. 
         */
         public static Dictionary<int, CommandInfo> Run(string text) { 
-            List<string> commands = [];  
-            List<List<string>> args = []; 
-            List<string> operators = [];
-            List<string> redirectFileNames = []; 
-            int summedLength = 0; 
+            var executionPlan = new Dictionary<int, CommandInfo>(); 
 
             /* 
                 at this point, we've trimmed the text if there's 
@@ -39,103 +36,96 @@ namespace src
                 loop through text and extract commands, args, and operators 
                 each loop = one dicionary entry 
             */
-            while (text.Length > summedLength) 
+            int cIdx = 0; // current index in text string 
+            int dIdx = 0; // current index in execution plan dictionary 
+            int summedLength = 0; 
+            while (summedLength < text.Length) 
             {
                 // 1) find the command 
-                for(int i = 0; i < text.Length; i++){
-                    summedLength++;
-                    if(text[i] == ' ') {
-                        // we found a command, add it to the list and move onto args or operator 
-                        commands.Add(text[..i]);
-                        text = text[text[..i].Length..]; // slice off command which was extracted 
-                        text = text.Trim(); // trim leading or trailing space 
-                        break; // don't want to parse args or operators as more commands 
-                    }
-                }
+                string cmd = text.Contains(' ') ? text[..text.IndexOf(' ', cIdx)] : text[..text.Length]; // if no space we take up to end (out of bounds error here?)
+                // cIdx += !string.IsNullOrEmpty(cmd) ? cmd.Length : 0;  
+                cIdx += cmd.Length; // should never be null here... 
 
                 // 2) find the (optional) args
+                // somehow check that the next thing is not an operator but an arg? 
+                // assume there's always at least one arg to parse so start loop no matter 
+                List<string> argSublist = [];
                 bool hasOperator = false; 
-                int currLen = text.Length; 
-                List<string> argList = []; // build local list to add onto master list 
-                for(int i = 0; i < currLen; i++)
+                for(int i = cIdx; i < text.Length; i++) 
                 {
-                    summedLength++;
-                    if (text[i] == ' ') 
+                    if (Operators.Contains(text[i].ToString())) 
                     {
-                        argList.Add(text[..i]); 
-                        // must continue to parse args up to an operator being found 
-                        text = text[text[..i].Length..]; // slice up to this point 
-                        text = text.Trim();
-                        currLen = text.Length; 
-                        i = -1; 
-                    }
-                    else if (text[i] == '>' || text[i] == '|') // just do this for now not considering if it's a valid part of the commands args  (ex. echo "this | text")
-                    { 
-                        if(!string.IsNullOrWhiteSpace(text[..i])) {
-                            argList.Add(text[..i]);
-                        }
-                        text = text[i..];
-                        text = text.Trim();
+                        // take arg up to operator then break 
+                        argSublist.Add(text[cIdx..text[i-1]]); 
                         hasOperator = true; 
+                        cIdx += text[cIdx..text[i-1]].Length; // may need to adjust 
                         break; 
-                    }
-                    else if(i + 1 == text.Length) // we now reached the end and no operator so the inclusive of last index we have another arg to add
+                    } 
+                    int spaceIdx = text.IndexOf(' ', cIdx);
+                    if (spaceIdx == -1)
                     {
-                        int j = i + 1;  
-                        argList.Add(text[..j]);
-                        text = string.Empty;
-                        break; 
+                        // No more spaces — take the rest of the string
+                        string arg = text[cIdx..];
+                        argSublist.Add(arg);
+                        break;
                     }
+                    else
+                    {
+                        string arg = text[cIdx..spaceIdx];
+                        argSublist.Add(arg);
+                        i = spaceIdx;
+                        cIdx = spaceIdx + 1;
+                    } 
                 }
-                args.Add(argList);
 
                 // 3) get the operator and it's file 
-                if(hasOperator) {
-                    for(int i = 0; i < text.Length; i++) 
+                string op = string.Empty; 
+                string file = string.Empty; 
+                if(hasOperator) 
+                {
+                    int opIdx = text.IndexOf(' ', cIdx);
+                    if (opIdx == -1) 
                     {
-                        summedLength++;
-                        if(text[i] == ' ') // passed operator, take from slice 
-                        {
-                            operators.Add(text[..i]);
-                            text = text[i..].Trim();
-                            // get the file name but nothing more 
-                            // I know this is nested like crazy but it'll do for now 
-                            for(int j = 0; j < text.Length; j++) {
-                                if(text[j] == ' ') {
-                                    redirectFileNames.Add(text[..i].Trim());
-                                    break;
-                                }
-                                else if(j + 1 == text.Length) {
-                                    int k = j + 1; 
-                                    redirectFileNames.Add(text[..k]);
-                                    text = string.Empty;
-                                    break;
-                                }
-                            }
-                            break;
-                        }
+                        op = text[cIdx..];
+                        break; // don't know if this'll behave as I intend. 
+                    }
+                    else
+                    {
+                        op = text[cIdx..opIdx]; 
+                        cIdx = opIdx + 1; 
+                    }
+                    int fileIdx = text.IndexOf(' ', cIdx);
+                    if (fileIdx == -1) 
+                    {
+                        file = text[cIdx..];
+                    }   
+                    else 
+                    {
+                        file = text[cIdx..fileIdx];
+                        cIdx = fileIdx + 1; 
                     }
                 }
-            }
-
-            // 4) put execution plan together 
-            var executionPlan = new Dictionary<int, CommandInfo>(); 
-            for(int i = 0; i < commands.Count; i++) 
-            {
-                executionPlan[i] = new CommandInfo {
-                    Command = commands[i].ToLower() ?? string.Empty, 
-                    Args = i < args.Count ? [.. args[i]] : [string.Empty], // ToArray equivalent 
-                    Operator = i < operators.Count ? operators[i] : string.Empty,
-                    RedirectFileName = i < redirectFileNames.Count ? redirectFileNames[i] : string.Empty
-                };
-
-                Logger.Log($"Command: {executionPlan[i].Command}", LogLevel.Debug);
+                
+                // 4) build dictionary 
+                executionPlan[dIdx] = new CommandInfo {
+                    Command = cmd.ToLower() ?? string.Empty, 
+                    Args = argSublist.ToArray() ?? [string.Empty], 
+                    Operator = op ?? string.Empty, 
+                    RedirectFileName = file ?? string.Empty 
+                }; 
+                Logger.Log($"Command: {executionPlan[dIdx].Command}", LogLevel.Debug);
                 Logger.Log($"Args:", LogLevel.Debug);
-                foreach(string str in executionPlan[i].Args) Logger.Log(str, LogLevel.Debug);
-                Logger.Log($"Operator: {executionPlan[i].Operator}", LogLevel.Debug);
-                Logger.Log($"Redirect File Name: {executionPlan[i].RedirectFileName}\n\n", LogLevel.Debug);
-            }
+                foreach(string str in executionPlan[dIdx].Args) Logger.Log(str, LogLevel.Debug);
+                Logger.Log($"Operator: {executionPlan[dIdx].Operator}", LogLevel.Debug);
+                Logger.Log($"Redirect File Name: {executionPlan[dIdx].RedirectFileName}\n\n", LogLevel.Debug);
 
+                dIdx++; 
+                summedLength +=
+                    (cmd?.Length ?? 0) +
+                    (op?.Length ?? 0) +
+                    (file?.Length ?? 0) +
+                    argSublist.Sum(arg => arg?.Length ?? 0);
+            }
             return executionPlan; 
         }
     }

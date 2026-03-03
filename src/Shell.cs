@@ -6,8 +6,7 @@ namespace src
     {
         private static Dictionary<string, IBuiltinCommand> _builtins = [];
         private static Dictionary<int, CommandInfo> executionPlan = [];
-        public readonly string[] operators = [">", "1>", "|", ">>", "||", "&&"]; 
-        public void Run()
+        public static void Run()
         {
             _builtins = BuiltinRegistry.LoadBuiltins();
             Console.Clear();
@@ -30,7 +29,7 @@ namespace src
                         CommandInfo next = items[i + 1].Value;
                         Logger.Log($"Next Command: {next.Command}", LogLevel.Debug);
 
-                        if(operators.Contains(current.Operator)) resp = Execute(current, next);
+                        if(parse.Operators.Contains(current.Operator)) resp = Execute(current, next);
                         else if (current.Operator == "||") {
                             // execute next only if current fails 
                             resp = Execute(current, next); 
@@ -49,9 +48,6 @@ namespace src
                     else {
                         resp.ReturnCode = ExecuteSolo(current);
                     }
-                    // do nothing with return code for now since bad commands are handled by execute functions. 
-                    // 0 : success 
-                    // 1 : fail 
                 }
             }
         }

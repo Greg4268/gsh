@@ -60,6 +60,24 @@ namespace src
                 return 1;
             }
         }
+
+        public static int AppendOutputToFile(CommandInfo item, CommandReturnStruct response) {
+            if(!string.IsNullOrEmpty(item.RedirectFileName)){
+                string content = string.Join(" ", response.Output);
+                try {
+                    File.AppendAllText(item.RedirectFileName, content);
+                    return 0; 
+                }
+                catch (Exception e) {
+                    Logger.Log($"Exception: {e}", LogLevel.Error);
+                    return 1;
+                }
+            }
+            else {
+                Logger.Log($"error: cannot write to file '{item.RedirectFileName}'", LogLevel.Error);
+                return 1;
+            }
+        }
     }
 
     public enum LogLevel {
